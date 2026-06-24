@@ -1,0 +1,22 @@
+<resources>
+    <string name="app_name">Bilingual Reader</string>
+    <string name="forgot_email_label">Account Email Address</string>
+    <string name="forgot_email_placeholder">jane@example.com</string>
+    <string name="forgot_send_reset_button">Send Reset Code</string>
+    <string name="forgot_resend_cooldown">Resend code in %ds</string>
+    <string name="forgot_back_button">Return to Login Portal</string>
+    <string name="forgot_empty_email_error">Please specify an email address to send instructions.</string>
+    <string name="forgot_invalid_email_error">Please enter a valid format for email address.</string>
+    <string name="forgot_success_message">Reset code sent to %s! Please check your verification dialog/inbox.</string>
+    <string name="forgot_no_network_error">No internet connection detected. Please verify your WiFi or mobile network is active and try again.</string>
+    <string name="forgot_code_sent_success">A 6-digit verification code has been successfully generated and sent to %s.</string>
+    <string name="forgot_enter_code_label">Enter 6-Digit Verification Code</string>
+    <string name="forgot_invalid_code_error">Invalid verification code. Please try again or request a new one.</string>
+    <string name="forgot_lockout_error">Too many failed attempts. This email reset function is locked for security. Please request a new code to retry.</string>
+    <string name="forgot_attempts_remaining">Invalid verification code. %d attempts remaining before full security lockout.</string>
+    <string name="forgot_new_password_label">Create New Password</string>
+    <string name="forgot_confirm_password_label">Confirm New Password</string>
+    <string name="forgot_reset_success_desc">Your password has been successfully reset! You can now access your account with the new credentials.</string>
+    <string name="forgot_password_mismatch_error">The entered passwords do not match. Please re-type and try again.</string>
+    <string name="forgot_password_short_error">Password must be at least 6 characters for adequate protection.</string>
+</resources>

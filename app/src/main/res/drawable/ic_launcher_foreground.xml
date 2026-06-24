@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Left book wing representing reading/story and source language -->
+    <path
+        android:fillColor="#E0E7FF"
+        android:pathData="M54,30 C38,30 30,40 30,44 L30,76 C30,72 38,62 54,62 Z" />
+        
+    <!-- Right book wing representing translation language -->
+    <path
+        android:fillColor="#C7D2FE"
+        android:pathData="M54,30 C70,30 78,40 78,44 L78,76 C78,72 70,62 54,62 Z" />
+        
+    <!-- Centered Book bookmark spine ribbon -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M51,30 L57,30 L57,70 L54,66 L51,70 Z" />
+</vector>

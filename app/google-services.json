@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "691323543494",
+    "project_id": "duallingu",
+    "storage_bucket": "duallingu.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:691323543494:android:aca853abdca203e910dcc7",
+        "android_client_info": {
+          "package_name": "com.aistudio.storyreader.fklpwq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAh1ijWdDkaBRouGwf202hIg7cRXDy-dEI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

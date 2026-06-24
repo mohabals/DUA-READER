@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function validFields() {
+      return request.resource.data.keys().hasAll(["uid", "email"]) &&
+        request.resource.data.keys().hasOnly([
+          "uid",
+          "name",
+          "email",
+          "photoUrl",
+          "createdAt",
+          "nativeLanguage",
+          "targetLanguage",
+          "xp",
+          "streak",
+          "level"
+        ]);
+    }
+
+    match /users/{userId} {
+
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && (request.resource.data.createdAt is int || request.resource.data.createdAt is timestamp)
+        && validFields();
+
+      allow update: if isOwner(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && validFields()
+        && request.resource.data.xp is int
+        && request.resource.data.streak is int;
+
+      allow delete: if false;
+    }
+  }
+}
