@@ -66,14 +66,27 @@ fun SavedScreen(
 
     // Navigation back press handler
     var selectedStoryForReview by remember { mutableStateOf<Story?>(null) }
+    var showAllSavedReviews by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = selectedStoryForReview != null) {
-        selectedStoryForReview = null
+    BackHandler(enabled = selectedStoryForReview != null || showAllSavedReviews) {
+        if (selectedStoryForReview != null) {
+            selectedStoryForReview = null
+        } else if (showAllSavedReviews) {
+            showAllSavedReviews = false
+        }
     }
 
     // Filtered sentences belonging specifically to the chosen story for review
     val storySentences = remember(savedSentences, selectedStoryForReview) {
         savedSentences.filter { it.storyId == selectedStoryForReview?.id }
+    }
+
+    val sentencesGroupedByStory = remember(savedSentences, allStories) {
+        savedSentences.groupBy { sentence ->
+            allStories.find { it.id == sentence.storyId }
+        }.mapNotNull { (story, list) ->
+            if (story != null) story to list else null
+        }.toMap()
     }
 
     // Auto-return to categories index list if there are no cards left for this story
@@ -121,7 +134,7 @@ fun SavedScreen(
                 }
             }
         } else {
-            if (selectedStoryForReview == null) {
+            if (selectedStoryForReview == null && !showAllSavedReviews) {
                 // Category Deck / Categories View
                 val savedStories = remember(savedSentences, allStories) {
                     val savedStoryIds = savedSentences.map { it.storyId }.toSet()
@@ -153,6 +166,31 @@ fun SavedScreen(
                             .padding(horizontal = 24.dp)
                             .widthIn(max = 340.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Button(
+                        onClick = { showAllSavedReviews = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .padding(horizontal = 24.dp)
+                            .height(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MenuBook,
+                            contentDescription = "Read All Saved",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Read All Saved Cards",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -331,6 +369,126 @@ fun SavedScreen(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            } else if (showAllSavedReviews) {
+                // Read All Saved Cards View
+                val reviewListState = androidx.compose.foundation.lazy.rememberLazyListState()
+                val isScrolling = reviewListState.isScrollInProgress
+                LaunchedEffect(isScrolling) {
+                    onScrollStateChanged(isScrolling)
+                }
+
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    // Back and Header Bar for All saved reviews
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { showAllSavedReviews = false },
+                            modifier = Modifier
+                                .padding(end = 12.dp)
+                                .size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back to categories",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = "READ ALL SAVED CARDS",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.6.sp
+                                ),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "All Collections",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                    }
+
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        state = reviewListState,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        sentencesGroupedByStory.forEach { (story, storySentencesList) ->
+                            item(key = "header_${story.id}") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 24.dp, vertical = 8.dp)
+                                        .background(
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(12.dp)
+                                        )
+                                        .padding(vertical = 10.dp, horizontal = 16.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Bookmark,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = story.title.uppercase(),
+                                            style = MaterialTheme.typography.titleSmall.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                letterSpacing = 1.2.sp
+                                            ),
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
+
+                            itemsIndexed(
+                                items = storySentencesList,
+                                key = { _, item -> "story_${story.id}_sentence_${item.id}" }
+                            ) { index, sentence ->
+                                SentenceItemView(
+                                    sentence = sentence,
+                                    index = index,
+                                    isStoppedHere = false,
+                                    onMarkStopped = {},
+                                    onToggleSaved = { viewModel.toggleSavedDirect(sentence) },
+                                    onCopy = { message ->
+                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                    },
+                                    fontSizeScale = fontSizeScale,
+                                    alwaysShowTranslation = showTranslationAlways,
+                                    onAnalyze = {
+                                        com.example.api.GeminiClient.launchOnDeviceAnalysis(context, sentence.originalText)
+                                    },
+                                    onRevealTranslation = {
+                                        viewModel.logCardReviewed()
+                                    },
+                                    onSpeak = { txt ->
+                                        viewModel.speakText(txt)
+                                    }
+                                )
                             }
                         }
                     }

@@ -226,43 +226,7 @@ fun ReaderScreen(
             }
         }
 
-        // Circular Minimal FAB to open Import / Paste Dialog
-        if (activeStory != null) {
-            FloatingActionButton(
-                onClick = { showImportDialog = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(bottom = 32.dp, end = 24.dp)
-                    .size(64.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PostAdd,
-                    contentDescription = "Post / Paste Bilingual Text",
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
 
-        // Circular Secondary FAB to clear current story's context
-        if (sentences.isNotEmpty()) {
-            FloatingActionButton(
-                onClick = { showClearDialog = true },
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(bottom = 32.dp, start = 24.dp)
-                    .size(52.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.DeleteForever,
-                    contentDescription = "Clear story sentences",
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
     }
 
     // Custom Import Overlay Sheet/Dialog supporting both text paste and `.txt` file selector
