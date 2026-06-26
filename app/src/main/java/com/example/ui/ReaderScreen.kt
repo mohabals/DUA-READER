@@ -43,6 +43,11 @@ import kotlin.math.abs
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import com.example.viewmodel.ReaderViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 
@@ -58,6 +63,42 @@ fun ReaderScreen(
     val activeStory by viewModel.activeStory.collectAsState()
     val listState = rememberLazyListState()
     val context = LocalContext.current
+
+    val grammarColorViewModel: com.example.viewmodel.GrammarColorViewModel = viewModel()
+    val pronunciationCoachViewModel: com.example.viewmodel.PronunciationCoachViewModel = viewModel()
+
+    val expWordFocus by viewModel.expWordFocus.collectAsState()
+    val expGrammarColor by viewModel.expGrammarColor.collectAsState()
+    val expKaraokeTts by viewModel.expKaraokeTts.collectAsState()
+    val expPronunciationCoach by viewModel.expPronunciationCoach.collectAsState()
+
+    val currentlySpokenText by viewModel.currentlySpokenText.collectAsState()
+    val highlightRange by viewModel.wordHighlightManager.highlightRange.collectAsState()
+
+    val grammarTagsMap by grammarColorViewModel.sentenceTags.collectAsState()
+
+    val isRecording by pronunciationCoachViewModel.isRecording.collectAsState()
+    val recordingSentenceId by pronunciationCoachViewModel.recordingSentenceId.collectAsState()
+    val recordingDuration by pronunciationCoachViewModel.recordingDuration.collectAsState()
+    val feedbackMap by pronunciationCoachViewModel.feedbackMap.collectAsState()
+
+    val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            Toast.makeText(context, "تم تفعيل إذن الميكروفون! يمكنك الآن البدء بتسجيل صوتك لقراءته.", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "إذن الميكروفون مطلوب لتشغيل مدرب النطق الصوتي.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    if (expGrammarColor) {
+        LaunchedEffect(sentences) {
+            for (sentence in sentences) {
+                grammarColorViewModel.requestGrammarAnalysis(sentence.originalText)
+            }
+        }
+    }
 
     val fontSizeScale by viewModel.fontSizeScale.collectAsState()
     val showTranslationAlways by viewModel.showTranslationAlways.collectAsState()
@@ -190,6 +231,81 @@ fun ReaderScreen(
                     contentPadding = PaddingValues(top = 16.dp, bottom = 120.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    if (expKaraokeTts) {
+                        item {
+                            val karaokeIsPlaying by viewModel.karaokeTtsManager.isPlaying.collectAsState()
+                            val activeKaraokeIndex by viewModel.karaokeTtsManager.currentSentenceIndex.collectAsState()
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.QueueMusic,
+                                            contentDescription = "Karaoke Icon",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Column {
+                                            Text(
+                                                text = "Bilingual Karaoke Mode",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                            if (karaokeIsPlaying && activeKaraokeIndex != -1) {
+                                                Text(
+                                                    text = "Playing sentence ${activeKaraokeIndex + 1} of ${sentences.size}",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = "Reads Russian then Arabic, alternating",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            if (karaokeIsPlaying) {
+                                                viewModel.stopKaraoke()
+                                            } else {
+                                                viewModel.playKaraoke(sentences)
+                                            }
+                                        },
+                                        colors = IconButtonDefaults.iconButtonColors(
+                                            containerColor = if (karaokeIsPlaying) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                            contentColor = if (karaokeIsPlaying) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = if (karaokeIsPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                            contentDescription = if (karaokeIsPlaying) "Stop Karaoke" else "Start Karaoke"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     itemsIndexed(
                         items = sentences,
                         key = { _, item -> item.id }
@@ -219,6 +335,33 @@ fun ReaderScreen(
                             },
                             onSpeak = { txt ->
                                 viewModel.speakText(txt)
+                            },
+                            highlightRange = if (currentlySpokenText == sentence.originalText) highlightRange else null,
+                            grammarTags = grammarTagsMap[sentence.originalText],
+                            isWordFocusEnabled = expWordFocus,
+                            isGrammarEnabled = expGrammarColor,
+                            isPronunciationCoachEnabled = expPronunciationCoach,
+                            isRecordingThis = isRecording && recordingSentenceId == sentence.id,
+                            recordingDurationSec = recordingDuration,
+                            onMicTap = {
+                                if (isRecording && recordingSentenceId == sentence.id) {
+                                    pronunciationCoachViewModel.stopRecording(sentence.originalText)
+                                } else {
+                                    val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                                        context,
+                                        android.Manifest.permission.RECORD_AUDIO
+                                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+                                    if (hasPermission) {
+                                        pronunciationCoachViewModel.startRecording(context, sentence.id, sentence.originalText)
+                                    } else {
+                                        recordAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                                    }
+                                }
+                            },
+                            feedbackResult = feedbackMap[sentence.id],
+                            onClearFeedback = {
+                                pronunciationCoachViewModel.clearFeedback(sentence.id)
                             }
                         )
                     }
@@ -409,6 +552,21 @@ fun ReaderScreen(
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    val showVoiceInstall by viewModel.karaokeTtsManager.showVoiceInstallDialog.collectAsState()
+    if (showVoiceInstall != null) {
+        val lang = if (showVoiceInstall == "ru") "Russian" else "Arabic"
+        AlertDialog(
+            onDismissRequest = { viewModel.karaokeTtsManager.dismissVoiceDialog() },
+            title = { Text("$lang TTS Voice Required") },
+            text = { Text("To play bilingual text in $lang, you need to make sure the $lang TTS voice data is installed on your device. Go to Settings -> Accessibility -> Text-to-Speech to configure it.") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.karaokeTtsManager.dismissVoiceDialog() }) {
+                    Text("OK")
                 }
             }
         )

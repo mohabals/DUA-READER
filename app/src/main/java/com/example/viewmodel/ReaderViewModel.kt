@@ -102,6 +102,13 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     val speechRate = MutableStateFlow(1.0f)
 
     private val sharedPrefs = application.getSharedPreferences("reader_settings", android.content.Context.MODE_PRIVATE)
+    private val appDataStore = com.example.data.AppDataStore(application)
+
+    // Experimental Settings State Flows
+    val expWordFocus = MutableStateFlow(false)
+    val expGrammarColor = MutableStateFlow(false)
+    val expKaraokeTts = MutableStateFlow(false)
+    val expPronunciationCoach = MutableStateFlow(false)
 
     val isOnboardingCompleted = MutableStateFlow(sharedPrefs.getBoolean("key_onboarding_completed", false))
     val isRememberMeEnabled = MutableStateFlow(sharedPrefs.getBoolean("key_remember_me_enabled", true))
@@ -339,6 +346,27 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
         viewModelScope.launch {
             speechRate.collect { sharedPrefs.edit().putFloat("key_speech_rate", it).apply() }
+        }
+
+        viewModelScope.launch {
+            val initial = appDataStore.featureWordHighlightFlow.first()
+            expWordFocus.value = initial
+            expWordFocus.collect { appDataStore.setFeatureWordHighlight(it) }
+        }
+        viewModelScope.launch {
+            val initial = appDataStore.featureGrammarColorFlow.first()
+            expGrammarColor.value = initial
+            expGrammarColor.collect { appDataStore.setFeatureGrammarColor(it) }
+        }
+        viewModelScope.launch {
+            val initial = appDataStore.featureKaraokeTtsFlow.first()
+            expKaraokeTts.value = initial
+            expKaraokeTts.collect { appDataStore.setFeatureKaraokeTts(it) }
+        }
+        viewModelScope.launch {
+            val initial = appDataStore.featurePronunciationCoachFlow.first()
+            expPronunciationCoach.value = initial
+            expPronunciationCoach.collect { appDataStore.setFeaturePronunciationCoach(it) }
         }
 
         // Automatically prefill sample data with structured groups and stories if blank on start
@@ -980,6 +1008,18 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private var textToSpeechInstance: android.speech.tts.TextToSpeech? = null
     private var isTtsReady = false
 
+    val wordHighlightManager = WordHighlightManager()
+    private var karaokeTtsManagerInstance: KaraokeTtsManager? = null
+    val currentlySpokenText = MutableStateFlow<String?>(null)
+
+    val karaokeTtsManager: KaraokeTtsManager
+        get() {
+            if (karaokeTtsManagerInstance == null) {
+                karaokeTtsManagerInstance = KaraokeTtsManager(getApplication())
+            }
+            return karaokeTtsManagerInstance!!
+        }
+
     fun speakText(text: String) {
         if (textToSpeechInstance == null) {
             textToSpeechInstance = android.speech.tts.TextToSpeech(getApplication()) { status ->
@@ -993,10 +1033,34 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun stopSpeak() {
+        textToSpeechInstance?.stop()
+        wordHighlightManager.reset()
+        currentlySpokenText.value = null
+    }
+
+    fun playKaraoke(sentences: List<SentenceCard>) {
+        if (expKaraokeTts.value) {
+            karaokeTtsManager.play(sentences, speechRate.value, speechPitch.value)
+        }
+    }
+
+    fun stopKaraoke() {
+        karaokeTtsManagerInstance?.stop()
+    }
+
     private fun performSpeak(text: String) {
         val tts = textToSpeechInstance ?: return
         if (!isTtsReady) return
         try {
+            currentlySpokenText.value = text
+            if (expWordFocus.value) {
+                wordHighlightManager.setupListener(tts, text, speechRate.value)
+            } else {
+                wordHighlightManager.reset()
+                tts.setOnUtteranceProgressListener(null)
+            }
+
             // Target Language detection based on character analysis
             val selectedLocale = when {
                 text.any { it in '\u0400'..'\u04FF' } -> java.util.Locale("ru") // Cyrillic
@@ -1034,5 +1098,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         super.onCleared()
         textToSpeechInstance?.stop()
         textToSpeechInstance?.shutdown()
+        wordHighlightManager.reset()
+        karaokeTtsManagerInstance?.shutdown()
+        currentlySpokenText.value = null
     }
 }
