@@ -14,6 +14,16 @@ import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import com.example.BuildConfig
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
@@ -103,6 +113,98 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     private val sharedPrefs = application.getSharedPreferences("reader_settings", android.content.Context.MODE_PRIVATE)
     private val appDataStore = com.example.data.AppDataStore(application)
+
+    val aiExplanationPrompt = MutableStateFlow(
+        sharedPrefs.getString("key_ai_explanation_prompt", """
+Explain this sentence.
+Include:
+Natural translation
+Word breakdown
+Grammar notes
+Common usage
+Alternative expressions
+
+Sentence: "{sentence}"
+        """.trimIndent()) ?: """
+Explain this sentence.
+Include:
+Natural translation
+Word breakdown
+Grammar notes
+Common usage
+Alternative expressions
+
+Sentence: "{sentence}"
+        """.trimIndent()
+    )
+
+    fun setAiExplanationPrompt(prompt: String) {
+        aiExplanationPrompt.value = prompt
+        sharedPrefs.edit().putString("key_ai_explanation_prompt", prompt).apply()
+    }
+
+    sealed interface AiExplanationState {
+        object Idle : AiExplanationState
+        object Loading : AiExplanationState
+        data class Success(val sentence: String, val explanation: String) : AiExplanationState
+        data class Error(val message: String) : AiExplanationState
+    }
+
+    private val _aiExplanationState = MutableStateFlow<AiExplanationState>(AiExplanationState.Idle)
+    val aiExplanationState = _aiExplanationState.asStateFlow()
+
+    private var explanationJob: Job? = null
+
+    fun dismissAiExplanation() {
+        explanationJob?.cancel()
+        _aiExplanationState.value = AiExplanationState.Idle
+    }
+
+    fun explainSentenceWithGemini(sentenceText: String) {
+        explanationJob?.cancel() // Cancel previous active request
+        
+        // Check local cache first to provide sub-millisecond instant responses and prevent API calls
+        val cached = com.example.api.GeminiService.getCachedExplanation(sentenceText)
+        if (cached != null) {
+            _aiExplanationState.value = AiExplanationState.Success(sentenceText, cached)
+            return
+        }
+
+        _aiExplanationState.value = AiExplanationState.Loading
+        explanationJob = viewModelScope.launch {
+            val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (e: Exception) { "" }
+            if (apiKey.isEmpty() || apiKey.contains("MY_GEMINI_API_KEY")) {
+                _aiExplanationState.value = AiExplanationState.Error("Gemini API key is not configured in the Secrets panel.")
+                return@launch
+            }
+
+            val template = aiExplanationPrompt.value
+            val prompt = if (template.contains("{sentence}")) {
+                template.replace("{sentence}", sentenceText)
+            } else {
+                "${template}\n\nSentence: \"$sentenceText\""
+            }
+
+            try {
+                // Request optimized for ultra-low latency with max output tokens capped to 256
+                val text = com.example.api.GeminiService.generateText(
+                    apiKey = apiKey,
+                    prompt = prompt,
+                    maxTokens = 256,
+                    temperature = 0.2
+                )
+                
+                com.example.api.GeminiService.setCachedExplanation(sentenceText, text)
+                _aiExplanationState.value = AiExplanationState.Success(sentenceText, text)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    throw e // Propagate coroutine cancellation cleanly
+                }
+                e.printStackTrace()
+                _aiExplanationState.value = AiExplanationState.Error(e.message ?: "Unknown error occurred.")
+            }
+        }
+    }
 
     // Experimental Settings State Flows
     val expWordFocus = MutableStateFlow(false)

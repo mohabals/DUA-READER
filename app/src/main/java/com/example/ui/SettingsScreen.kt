@@ -43,6 +43,7 @@ fun SettingsScreen(
     val expGrammarColor by viewModel.expGrammarColor.collectAsState()
     val expKaraokeTts by viewModel.expKaraokeTts.collectAsState()
     val expPronunciationCoach by viewModel.expPronunciationCoach.collectAsState()
+    val aiExplanationPrompt by viewModel.aiExplanationPrompt.collectAsState()
 
     var showResetConfirmation by remember { mutableStateOf(false) }
 
@@ -555,6 +556,94 @@ fun SettingsScreen(
                     Icon(Icons.Default.Celebration, contentDescription = "Rerun")
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Re-enact Premium Onboarding Setup", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        // --- Gemini AI Explanation Prompt Settings Card ---
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+            ),
+            border = CardDefaults.outlinedCardBorder().copy(
+                width = 1.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                        MaterialTheme.colorScheme.outline.copy(alpha = 0.05f)
+                    )
+                )
+            )
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Gemini Explanation Prompt",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "AI Sentence Explanation Prompt",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Text(
+                    text = "Customize the prompt template used by Gemini to explain sentences. Use {sentence} as a placeholder where the active sentence will be inserted.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = aiExplanationPrompt,
+                    onValueChange = { viewModel.setAiExplanationPrompt(it) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Enter prompt template...") },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                    ),
+                    maxLines = 15
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        val defaultPrompt = """
+Explain this sentence.
+Include:
+Natural translation
+Word breakdown
+Grammar notes
+Common usage
+Alternative expressions
+
+Sentence: "{sentence}"
+                        """.trimIndent()
+                        viewModel.setAiExplanationPrompt(defaultPrompt)
+                        Toast.makeText(context, "Prompt reset to default!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(),
+                    modifier = Modifier.align(Alignment.End),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                ) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Reset Prompt", modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Reset to Default", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         }

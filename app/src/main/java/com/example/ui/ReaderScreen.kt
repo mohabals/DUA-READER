@@ -328,7 +328,7 @@ fun ReaderScreen(
                             fontSizeScale = fontSizeScale,
                             alwaysShowTranslation = showTranslationAlways,
                             onAnalyze = {
-                                com.example.api.GeminiClient.launchOnDeviceAnalysis(context, sentence.originalText)
+                                viewModel.explainSentenceWithGemini(sentence.originalText)
                             },
                             onRevealTranslation = {
                                 viewModel.logSentenceRead(sentence.id)

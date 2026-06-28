@@ -41,102 +41,32 @@ class GrammarColorViewModel : ViewModel() {
     }
 
     private suspend fun fetchGrammarTags(text: String): List<WordTag>? = withContext(Dispatchers.IO) {
-        // Try Claude API first if key is available
-        val claudeKey = try { BuildConfig.CLAUDE_API_KEY } catch (e: Exception) { "" }
-        if (claudeKey.isNotEmpty() && !claudeKey.contains("YOUR_CLAUDE_API_KEY")) {
-            val result = callClaudeApi(text, claudeKey)
-            if (result != null) return@withContext result
+        // Dual-layer cache check (global GeminiService cache)
+        val cached = com.example.api.GeminiService.getCachedGrammar(text)
+        if (cached != null) {
+            return@withContext parseWordTags(cached)
         }
 
-        // Fallback to Gemini API
         val geminiKey = try { BuildConfig.GEMINI_API_KEY } catch (e: Exception) { "" }
         if (geminiKey.isNotEmpty() && !geminiKey.contains("MY_GEMINI_API_KEY")) {
-            return@withContext callGeminiApi(text, geminiKey)
+            try {
+                val prompt = "Analyze the Russian sentence and return ONLY a JSON array with no explanation, no markdown, no code blocks. Each element: {\"word\": string, \"pos\": string, \"start\": number, \"end\": number}\nPOS values must be exactly one of: noun, verb, adjective, adverb, other\nstart and end are character indices in the original string.\n\nSentence: $text"
+                
+                val result = com.example.api.GeminiService.generateText(
+                    apiKey = geminiKey,
+                    prompt = prompt,
+                    maxTokens = 512,
+                    temperature = 0.1,
+                    responseMimeType = "application/json"
+                )
+                com.example.api.GeminiService.setCachedGrammar(text, result)
+                return@withContext parseWordTags(result)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
 
         return@withContext null
-    }
-
-    private fun callClaudeApi(text: String, apiKey: String): List<WordTag>? {
-        try {
-            val mediaType = "application/json".toMediaType()
-            val systemPrompt = "You are a Russian morphology analyzer. You receive a Russian sentence and return ONLY a JSON array with no explanation, no markdown, no code blocks. Each element: {\"word\": string, \"pos\": string, \"start\": number, \"end\": number}\nPOS values must be exactly one of: noun, verb, adjective, adverb, other\nstart and end are character indices in the original string."
-
-            val jsonBody = JSONObject().apply {
-                put("model", "claude-3-5-sonnet-20241022")
-                put("max_tokens", 1024)
-                put("system", systemPrompt)
-                put("messages", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", text)
-                    })
-                })
-            }
-
-            val request = Request.Builder()
-                .url("https://api.anthropic.com/v1/messages")
-                .post(jsonBody.toString().toRequestBody(mediaType))
-                .addHeader("x-api-key", apiKey)
-                .addHeader("anthropic-version", "2023-06-01")
-                .addHeader("content-type", "application/json")
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val bodyStr = response.body?.string() ?: return null
-                val responseObj = JSONObject(bodyStr)
-                val contentArray = responseObj.getJSONArray("content")
-                if (contentArray.length() > 0) {
-                    val textContent = contentArray.getJSONObject(0).getString("text")
-                    return parseWordTags(textContent)
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return null
-    }
-
-    private fun callGeminiApi(text: String, apiKey: String): List<WordTag>? {
-        try {
-            val mediaType = "application/json".toMediaType()
-            val prompt = "Analyze the Russian sentence and return ONLY a JSON array with no explanation, no markdown, no code blocks. Each element: {\"word\": string, \"pos\": string, \"start\": number, \"end\": number}\nPOS values must be exactly one of: noun, verb, adjective, adverb, other\nstart and end are character indices in the original string.\n\nSentence: $text"
-
-            val jsonBody = JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("text", prompt)
-                            })
-                        })
-                    })
-                })
-            }
-
-            val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
-                .post(jsonBody.toString().toRequestBody(mediaType))
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return null
-                val bodyStr = response.body?.string() ?: return null
-                val responseObj = JSONObject(bodyStr)
-                val candidates = responseObj.getJSONArray("candidates")
-                if (candidates.length() > 0) {
-                    val parts = candidates.getJSONObject(0).getJSONObject("content").getJSONArray("parts")
-                    if (parts.length() > 0) {
-                        val responseText = parts.getJSONObject(0).getString("text")
-                        return parseWordTags(responseText)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return null
     }
 
     private fun parseWordTags(jsonText: String): List<WordTag> {

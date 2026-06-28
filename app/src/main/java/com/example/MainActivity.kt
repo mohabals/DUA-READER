@@ -34,6 +34,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 
 // --- FIREBASE IMPORTS ADDED SOBERLY HERE ---
 import com.google.firebase.FirebaseApp
@@ -78,7 +82,7 @@ enum class ReaderScreenType {
     LIBRARY, FEED, SAVED, SETTINGS
 }
 
-@OptIn(ExperimentalAnimationApi::class)
+@OptIn(ExperimentalAnimationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun MainAppContainer(viewModel: ReaderViewModel) {
     val isOnboardingCompleted by viewModel.isOnboardingCompleted.collectAsState()
@@ -301,6 +305,176 @@ fun MainAppContainer(viewModel: ReaderViewModel) {
                     ReaderScreenType.FEED -> ReaderScreen(viewModel = viewModel, onScrollStateChanged = { isScrolling = it }, onNavigateToLibrary = { currentScreen = ReaderScreenType.LIBRARY }, modifier = Modifier.fillMaxSize())
                     ReaderScreenType.SAVED -> SavedScreen(viewModel = viewModel, onScrollStateChanged = { isScrolling = it }, modifier = Modifier.fillMaxSize())
                     ReaderScreenType.SETTINGS -> SettingsScreen(viewModel = viewModel, modifier = Modifier.fillMaxSize())
+                }
+            }
+        }
+
+        // --- Gemini AI Explanation Bottom Sheet overlay ---
+        val aiExplanation by viewModel.aiExplanationState.collectAsState()
+        if (aiExplanation !is ReaderViewModel.AiExplanationState.Idle) {
+            val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            val context = LocalContext.current
+
+            ModalBottomSheet(
+                onDismissRequest = { viewModel.dismissAiExplanation() },
+                sheetState = sheetState,
+                containerColor = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 40.dp)
+                ) {
+                    // Title Header Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AutoAwesome,
+                                contentDescription = "Gemini Analysis",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = "Gemini Sentence Analysis",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                        IconButton(onClick = { viewModel.dismissAiExplanation() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    when (val state = aiExplanation) {
+                        is ReaderViewModel.AiExplanationState.Loading -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                CircularProgressIndicator()
+                                Text(
+                                    text = "Gemini is translating and explaining...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        is ReaderViewModel.AiExplanationState.Success -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(
+                                    text = "Sentence:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = state.sentence,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    text = "Analysis & Explanation:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    text = state.explanation,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                            val clip = android.content.ClipData.newPlainText("Sentence Explanation", state.explanation)
+                                            clipboard.setPrimaryClip(clip)
+                                            Toast.makeText(context, "Copied explanation to clipboard!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Copy Explanation")
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { viewModel.dismissAiExplanation() },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Text("Close")
+                                    }
+                                }
+                            }
+                        }
+                        is ReaderViewModel.AiExplanationState.Error -> {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 32.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ErrorOutline,
+                                    contentDescription = "Error",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Text(
+                                    text = "Failed to load explanation",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    text = state.message,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(
+                                    onClick = { viewModel.dismissAiExplanation() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Dismiss")
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
                 }
             }
         }

@@ -480,7 +480,7 @@ fun SavedScreen(
                                     fontSizeScale = fontSizeScale,
                                     alwaysShowTranslation = showTranslationAlways,
                                     onAnalyze = {
-                                        com.example.api.GeminiClient.launchOnDeviceAnalysis(context, sentence.originalText)
+                                        viewModel.explainSentenceWithGemini(sentence.originalText)
                                     },
                                     onRevealTranslation = {
                                         viewModel.logCardReviewed()
@@ -566,7 +566,7 @@ fun SavedScreen(
                                 fontSizeScale = fontSizeScale,
                                 alwaysShowTranslation = showTranslationAlways,
                                 onAnalyze = {
-                                    com.example.api.GeminiClient.launchOnDeviceAnalysis(context, sentence.originalText)
+                                    viewModel.explainSentenceWithGemini(sentence.originalText)
                                 },
                                 onRevealTranslation = {
                                     viewModel.logCardReviewed()
